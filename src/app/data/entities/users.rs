@@ -7,19 +7,19 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
-    pub name: Option<String>,
-    pub username: Option<String>,
-    pub description: Option<String>,
+    pub name: String,
+    pub username: String,
+    pub description: String,
 }
 
 impl Model {
     pub fn to_twitter_user(&self) -> twitter_v2::User {
         twitter_v2::User {
             id: twitter_v2::id::NumericId::new(self.id.try_into().unwrap()),
-            name: self.name.clone().expect("Bad Name"),
-            username: self.username.clone().expect("Bad Usersname"),
+            name: self.name.clone(),
+            username: self.username.clone(),
             created_at: None,
-            description: self.description.clone(),
+            description: Some(self.description.clone()),
             entities: None,
             location: None,
             pinned_tweet_id: None,

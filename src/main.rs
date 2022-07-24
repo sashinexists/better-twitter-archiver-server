@@ -9,6 +9,8 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, Database, DatabaseConnection,
     DbBackend, DbErr, DeleteResult, EntityTrait, InsertResult, QueryFilter, Statement,
 };
+mod utilities;
+
 #[get("/")]
 async fn index() -> &'static str {
     "Welcome to the better twitter archiver server!"
@@ -16,32 +18,32 @@ async fn index() -> &'static str {
 
 #[get("/tweets")]
 async fn tweets(db: &State<DatabaseConnection>) -> String {
-    app::data::read::tweets(db).await
+    utilities::to_ron(&app::data::read::tweets(db).await)
 }
 
 #[get("/users")]
 async fn users(db: &State<DatabaseConnection>) -> String {
-    app::data::read::users(db).await
+    utilities::to_ron(&app::data::read::users(db).await)
 }
 
 #[get("/userbyid/<id>")]
 async fn user_by_id(db: &State<DatabaseConnection>, id: i64) -> String {
-    app::data::read::user_by_id(db, id).await
+    utilities::to_ron(&app::load_user_from_id(db, id).await)
 }
 
 #[get("/user/<twitter_handle>")]
 async fn user_by_twitter_handle(db: &State<DatabaseConnection>, twitter_handle: &str) -> String {
-    app::data::read::user_by_twitter_handle(db, twitter_handle).await
+    utilities::to_ron(&app::load_user_from_twitter_handle(db, &twitter_handle).await)
 }
 
 #[get("/user/<twitter_handle>/tweets")]
 async fn users_tweets(db: &State<DatabaseConnection>, twitter_handle: &str) -> String {
-    app::data::read::users_tweets(db, twitter_handle).await
+    utilities::to_ron(&app::load_user_tweets_from_twitter_handle(db, twitter_handle).await)
 }
 
 #[get("/tweet/<id>")]
 async fn tweet_by_id(db: &State<DatabaseConnection>, id: i64) -> String {
-    app::load_tweet_from_id(db, id).await
+    utilities::to_ron(&app::load_tweet_from_id(db, id).await)
 }
 
 #[launch]
