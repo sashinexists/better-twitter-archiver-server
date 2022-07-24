@@ -2,12 +2,10 @@
 
 pub mod prelude;
 
-pub mod conversation;
 pub mod conversations;
 pub mod seaql_migrations;
-pub mod tweet;
-pub mod tweet_reference;
+
 pub mod tweet_references;
 pub mod tweets;
-pub mod user;
+
 pub mod users;
