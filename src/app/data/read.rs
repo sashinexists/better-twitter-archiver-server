@@ -1,4 +1,4 @@
-use crate::app::load_user_from_twitter_handle;
+use crate::{app::load_user_from_twitter_handle, utils::TweetReferenceData};
 
 use super::entities::prelude::*;
 use super::entities::*;
@@ -16,6 +16,23 @@ pub async fn tweet_by_id(db: &State<DatabaseConnection>, id: i64) -> Option<Twee
 
     match tweet {
         Some(tweet) => Some(tweet.to_tweet()),
+        None => None,
+    }
+}
+
+pub async fn tweet_reference_by_id(
+    db: &State<DatabaseConnection>,
+    id: i64,
+) -> Option<TweetReferenceData> {
+    let db = db as &DatabaseConnection;
+
+    let tweet_reference = TweetReferences::find_by_id(id)
+        .one(db)
+        .await
+        .expect("Failed to open the result option model tweet");
+
+    match tweet_reference {
+        Some(tweet_reference) => Some(tweet_reference.to_tweet_reference_data()),
         None => None,
     }
 }
@@ -100,6 +117,18 @@ pub async fn does_conversation_exist(db: &State<DatabaseConnection>, id: i64) ->
         .all(db)
         .await
         .expect("Failed to get conversation {id}")
+        .len()
+        == 1
+}
+
+pub async fn does_tweet_exist(db: &State<DatabaseConnection>, id: i64) -> bool {
+    let db = db as &DatabaseConnection;
+
+    Tweets::find()
+        .filter(tweets::Column::Id.eq(id))
+        .all(db)
+        .await
+        .expect("Failed to get tweet {id}")
         .len()
         == 1
 }

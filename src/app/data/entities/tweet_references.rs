@@ -2,13 +2,26 @@
 
 use sea_orm::entity::prelude::*;
 
+use crate::utils::TweetReferenceData;
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "tweet_references")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
-    pub source_tweet_id: i32,
-    pub reference_type: Option<String>,
-    pub referenced_tweet_id: Option<i32>,
+    pub source_tweet_id: i64,
+    pub reference_type: String,
+    pub referenced_tweet_id: i64,
+}
+
+impl Model {
+    pub fn to_tweet_reference_data(&self) -> TweetReferenceData {
+        TweetReferenceData {
+            reference_type: TweetReferenceData::kind_from_string(&self.reference_type)
+                .expect("Failed to get tweet reference type"),
+            source_tweet_id: self.source_tweet_id,
+            reference_tweet_id: self.referenced_tweet_id,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

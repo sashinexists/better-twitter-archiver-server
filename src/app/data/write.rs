@@ -1,6 +1,6 @@
-use crate::app::load_user_from_id;
+use crate::app::{load_tweet_from_id, load_user_from_id};
 
-use super::super::super::utilities::convert_date_to_chrono;
+use super::super::super::utils::{convert_date_to_chrono, TweetReferenceData};
 use super::entities::prelude::*;
 use super::entities::*;
 use chrono::{format::Fixed, DateTime, FixedOffset};
@@ -96,6 +96,27 @@ pub async fn conversation(db: &State<DatabaseConnection>, conversation_id: &i64)
         id: ActiveValue::Set(conversation_id.clone()),
     };
     let res = Conversations::insert(to_write)
+        .exec(db.inner())
+        .await
+        .expect("failed to insert conversation {conversation_id} into database");
+}
+
+pub async fn tweet_reference(
+    db: &State<DatabaseConnection>,
+    tweet_reference_data: &TweetReferenceData,
+) -> () {
+    let referenced_tweet_id = tweet_reference_data.reference_tweet_id;
+
+    if !super::read::does_tweet_exist(db, referenced_tweet_id).await {
+        load_tweet_from_id(db, referenced_tweet_id).await;
+    }
+
+    let to_write = tweet_references::ActiveModel {
+        source_tweet_id: ActiveValue::Set(tweet_reference_data.source_tweet_id.clone()),
+        reference_type: ActiveValue::Set(tweet_reference_data.type_to_string()),
+        referenced_tweet_id: ActiveValue::Set(tweet_reference_data.reference_tweet_id),
+    };
+    let res = TweetReferences::insert(to_write)
         .exec(db.inner())
         .await
         .expect("failed to insert conversation {conversation_id} into database");

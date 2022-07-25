@@ -2,6 +2,8 @@ use rocket::State;
 use sea_orm::DatabaseConnection;
 use twitter_v2::{Tweet, User};
 
+use crate::utils::TweetReferenceData;
+
 use self::data::entities::tweets;
 
 pub mod api;
@@ -16,6 +18,14 @@ pub async fn load_tweet_from_id(db: &State<DatabaseConnection>, id: i64) -> Twee
             tweet
         }
     }
+}
+
+//unsure about this one
+pub async fn load_tweet_reference(
+    db: &State<DatabaseConnection>,
+    id: i64,
+) -> Option<TweetReferenceData> {
+    data::read::tweet_reference_by_id(db, id).await
 }
 
 pub async fn load_user_from_id(db: &State<DatabaseConnection>, id: i64) -> User {
