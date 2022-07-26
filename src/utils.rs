@@ -4,7 +4,7 @@ use rocket::{
     time::{format_description, OffsetDateTime},
     tokio::sync::watch::Ref,
 };
-use twitter_v2::data::ReferencedTweetKind;
+use twitter_v2::data::{ReferencedTweet, ReferencedTweetKind};
 
 pub fn convert_date_to_chrono(date: Option<OffsetDateTime>) -> DateTime<FixedOffset> {
     let format = format_description::parse(
@@ -26,7 +26,7 @@ pub fn to_ron<T: ?Sized + Serialize>(item: &T) -> String {
     ron::ser::to_string_pretty(item, ron::ser::PrettyConfig::new())
         .expect("Failed to parse tweet into string")
 }
-
+#[derive(Debug, Serialize)]
 pub struct TweetReferenceData {
     pub reference_type: ReferencedTweetKind,
     pub source_tweet_id: i64,
@@ -49,6 +49,26 @@ impl TweetReferenceData {
             "retweeted" => Some(ReferencedTweetKind::Retweeted),
             "quoted" => Some(ReferencedTweetKind::Quoted),
             _ => None,
+        }
+    }
+
+    pub fn from_referenced_tweet(id: i64, referenced_tweet: &ReferencedTweet) -> Self {
+        Self {
+            reference_type: referenced_tweet.kind.clone(),
+            source_tweet_id: id.clone(),
+            reference_tweet_id: referenced_tweet
+                .id
+                .as_u64()
+                .try_into()
+                .expect("Bad referenced tweet id"),
+        }
+    }
+
+    pub fn clone(&self) -> Self {
+        Self {
+            reference_type: self.reference_type.clone(),
+            source_tweet_id: self.source_tweet_id.clone(),
+            reference_tweet_id: self.reference_tweet_id.clone(),
         }
     }
 }

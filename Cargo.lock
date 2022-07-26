@@ -326,6 +326,8 @@ dependencies = [
  "rocket",
  "ron",
  "sea-orm",
+ "serde",
+ "serde_derive",
  "twitter-v2",
 ]
 

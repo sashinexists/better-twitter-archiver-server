@@ -4,46 +4,53 @@ use twitter_v2::data::ReferencedTweetKind::RepliedTo;
 use twitter_v2::id::NumericId;
 use twitter_v2::query::{TweetField, UserField};
 use twitter_v2::{Tweet, TwitterApi, User};
-/*
-use async_recursion::async_recursion;
-
-#[async_recursion]
-pub async fn get_twitter_conversation_from_tweet(tweet: Tweet) -> Vec<Tweet> {
-    let mut output = vec![tweet];
-    match &output[0].referenced_tweets {
-        Some(referenced_tweets) => {
-            if referenced_tweets
-                .iter()
-                .any(|tweet| tweet.kind == RepliedTo)
-            {
-                let replied_to_id = referenced_tweets
-                    .iter()
-                    .find(|tweet| tweet.kind == RepliedTo)
-                    .expect("Failed to find replied to tweet")
-                    .id
-                    .as_u64();
-                let replied_to: Tweet = super::load_tweet_from_id(replied_to_id).await;
-                let mut conversation: Vec<Tweet> =
-                    get_twitter_conversation_from_tweet(replied_to).await;
-                output.append(&mut conversation);
-                output
-            } else {
-                output.reverse();
-                output
-            }
-        }
-        None => {
-            output.reverse();
-            output
-        }
-    }
-}*/
 
 pub async fn get_tweets_from_user(user: &User) -> Vec<Tweet> {
     load_api()
         .await
         .get_user_tweets(user.id)
-        .max_results(10) //this line gets the max results
+        .max_results(100) //this line gets the max results
+        .tweet_fields([
+            TweetField::Attachments,
+            TweetField::ReferencedTweets,
+            TweetField::AuthorId,
+            TweetField::ConversationId,
+            TweetField::CreatedAt,
+        ])
+        .send()
+        .await
+        .expect("Users tweets not loading")
+        .into_data()
+        .expect("Failure to open option<Vec<Tweet>>")
+}
+
+pub async fn get_latest_tweet_from_user(user: &User) -> Tweet {
+    load_api()
+        .await
+        .get_user_tweets(user.id)
+        .max_results(5) //this line gets the max results
+        .tweet_fields([
+            TweetField::Attachments,
+            TweetField::ReferencedTweets,
+            TweetField::AuthorId,
+            TweetField::ConversationId,
+            TweetField::CreatedAt,
+        ])
+        .send()
+        .await
+        .expect("Users tweets not loading")
+        .into_data()
+        .expect("Failure to open option<Vec<Tweet>>")
+        .first()
+        .expect("Couldn't parse latest tweet")
+        .clone()
+}
+
+pub async fn get_new_tweets_from_user(user: &User, from: &OffsetDateTime) -> Vec<Tweet> {
+    load_api()
+        .await
+        .get_user_tweets(user.id)
+        .start_time(from.clone())
         .tweet_fields([
             TweetField::Attachments,
             TweetField::ReferencedTweets,
@@ -112,7 +119,7 @@ pub async fn get_tweets_from_user_until_id(user: &User, id: u64) -> Vec<Tweet> {
         .expect("Failure to open option<Vec<Tweet>>")
 }
 
-pub async fn get_tweet_by_id(id: u64) -> Tweet {
+pub async fn get_tweet_by_id(id: u64) -> Option<Tweet> {
     load_api()
         .await
         .get_tweet(id)
@@ -127,7 +134,6 @@ pub async fn get_tweet_by_id(id: u64) -> Tweet {
         .await
         .expect("this tweet should exist")
         .into_data()
-        .expect("Failure to open Option<Tweet>")
 }
 
 pub async fn get_user_by_twitter_handle(twitter_handle: &str) -> User {
