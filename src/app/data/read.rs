@@ -2,7 +2,8 @@ use crate::{app::load_user_from_twitter_handle, utils::TweetReferenceData};
 
 use super::entities::prelude::*;
 use super::entities::*;
-use rocket::State;
+use chrono::{format::Fixed, FixedOffset};
+use rocket::{time::serde::rfc3339, State};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 use twitter_v2::{id::NumericId, Tweet, User};
 
@@ -124,6 +125,31 @@ pub async fn users_tweets(db: &State<DatabaseConnection>, twitter_handle: &str) 
         .collect::<Vec<twitter_v2::Tweet>>()
 }
 
+pub async fn users_tweets_since_date(
+    db: &State<DatabaseConnection>,
+    twitter_handle: &str,
+    rfc3339_date: &str,
+) -> Vec<Tweet> {
+    let user = load_user_from_twitter_handle(db, twitter_handle).await;
+    let username = user.name;
+
+    let date = chrono::DateTime::<FixedOffset>::parse_from_rfc3339(rfc3339_date)
+        .expect("Failed to parse date");
+
+    let db = db as &DatabaseConnection;
+
+    Tweets::find()
+        .filter(tweets::Column::AuthorId.eq(user.id.as_u64()))
+        .filter(tweets::Column::CreatedAt.gt(date))
+        .order_by_desc(tweets::Column::CreatedAt)
+        .all(db)
+        .await
+        .expect(&format!("Failed to get @{username}'s tweets"))
+        .into_iter()
+        .map(|b| b.to_tweet())
+        .collect::<Vec<twitter_v2::Tweet>>()
+}
+
 pub async fn does_conversation_exist(db: &State<DatabaseConnection>, id: i64) -> bool {
     let db = db as &DatabaseConnection;
 
@@ -162,4 +188,18 @@ pub async fn latest_tweet_from_user(db: &State<DatabaseConnection>, id: i64) -> 
         Some(tweet_model) => Some(tweet_model.to_tweet()),
         None => None,
     }
+}
+
+pub async fn search_tweets_in_db(db: &State<DatabaseConnection>, search_query: &str) -> Vec<Tweet> {
+    let db = db as &DatabaseConnection;
+
+    Tweets::find()
+        .filter(tweets::Column::Content.contains(search_query))
+        .order_by_desc(tweets::Column::CreatedAt)
+        .all(db)
+        .await
+        .expect("Failed to run tweet search")
+        .into_iter()
+        .map(|b| b.to_tweet())
+        .collect::<Vec<twitter_v2::Tweet>>()
 }

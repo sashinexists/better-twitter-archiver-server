@@ -162,6 +162,25 @@ pub async fn has_new_tweets(db: &State<DatabaseConnection>, twitter_handle: &str
     difference > 0
 }
 
+pub async fn has_user_tweeted_since_date(
+    db: &State<DatabaseConnection>,
+    twitter_handle: &str,
+    date_unix_timestamp: i64,
+) -> bool {
+    let latest_tweet_date = load_offset_datetime_for_users_latest_tweet(db, twitter_handle).await;
+    let difference = latest_tweet_date.unix_timestamp() - date_unix_timestamp;
+    difference > 0
+}
+
+pub async fn load_users_tweets_since_date(
+    db: &State<DatabaseConnection>,
+    twitter_handle: &str,
+    rfc3339_date: &str,
+) -> Vec<Tweet> {
+    data::write::tweets(db, &load_users_new_tweets(db, twitter_handle).await).await;
+    data::read::users_tweets_since_date(db, twitter_handle, rfc3339_date).await
+}
+
 pub async fn load_users_new_tweets(
     db: &State<DatabaseConnection>,
     twitter_handle: &str,
@@ -233,3 +252,7 @@ pub async fn load_twitter_conversation_from_tweet(
     }
 }
 */
+
+pub async fn search_tweets_in_db(db: &State<DatabaseConnection>, search_query: &str) -> Vec<Tweet> {
+    data::read::search_tweets_in_db(db, search_query).await
+}
