@@ -183,6 +183,10 @@ pub async fn tweet_reference(
     tweet_reference_data: TweetReferenceData,
 ) -> () {
     let referenced_tweet_id = tweet_reference_data.reference_tweet_id;
+    let source_tweet_id = tweet_reference_data.source_tweet_id;
+    if !super::read::does_tweet_exist(db, source_tweet_id.clone()).await {
+        load_tweet_from_id(db, source_tweet_id.clone()).await;
+    }
 
     if !super::read::does_tweet_exist(db, referenced_tweet_id.clone()).await {
         load_tweet_from_id(db, referenced_tweet_id.clone()).await;
