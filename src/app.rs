@@ -1,14 +1,11 @@
 use std::time::Duration;
 
 use crate::utils::TweetReferenceData;
-use futures::StreamExt;
 use rocket::tokio;
 use rocket::{time::OffsetDateTime, State};
 use sea_orm::DatabaseConnection;
-use twitter_v2::data::ReferencedTweetKind::RepliedTo;
 use twitter_v2::{Tweet, User};
 
-use self::data::entities::tweets;
 
 pub mod api;
 pub mod data;
