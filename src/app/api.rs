@@ -174,6 +174,7 @@ pub async fn get_tweet_by_id(id: u64) -> Option<Tweet> {
         .into_data()
 }
 
+
 pub async fn get_user_by_twitter_handle(twitter_handle: &str) -> User {
     load_api()
         .await

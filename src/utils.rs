@@ -2,7 +2,6 @@ use chrono::{DateTime, FixedOffset};
 use rocket::{
     serde::Serialize,
     time::{format_description, OffsetDateTime},
-    tokio::sync::watch::Ref,
 };
 use twitter_v2::data::{ReferencedTweet, ReferencedTweetKind};
 

@@ -1,11 +1,11 @@
 use std::time::Duration;
 
 use crate::utils::TweetReferenceData;
+use async_recursion::async_recursion;
 use rocket::tokio;
 use rocket::{time::OffsetDateTime, State};
 use sea_orm::DatabaseConnection;
-use twitter_v2::{Tweet, User};
-
+use twitter_v2::{Tweet, User, data::ReferencedTweetKind::RepliedTo};
 
 pub mod api;
 pub mod data;
@@ -13,22 +13,23 @@ pub mod data;
 pub async fn load_tweet_from_id(db: &State<DatabaseConnection>, id: i64) -> Option<Tweet> {
     match data::read::tweet_by_id(db, id).await {
         Some(tweet) => Some(tweet),
-        None => {
-            let tweet = api::get_tweet_by_id(id.try_into().unwrap()).await;
-            match tweet {
-                Some(tweet) => {
-                    data::write::tweet(db, &tweet).await;
-                    Some(tweet)
-                }
-                None => {
-                    println!(
-                        "Couldn't load tweet from id {}. It was probably deleted.",
-                        id
-                    );
-                    None
-                }
+        None => match api::get_tweet_by_id(id.try_into().unwrap_or_else(|error| {
+            panic!(
+                "Failed to parse tweet id {id} from i64 to u64. \n\nError: {:?}",
+                error
+            )
+        }))
+        .await
+        {
+            Some(tweet) => {
+                data::write::tweet(db, &tweet).await;
+                Some(tweet)
             }
-        }
+            None => {
+                println!("Failed to load tweet from id {id}");
+                None
+            }
+        },
     }
 }
 
@@ -36,9 +37,6 @@ pub async fn load_tweet_with_reference_from_id(
     db: &State<DatabaseConnection>,
     id: i64,
 ) -> Option<Tweet> {
-    //match data::read::tweet_by_id(db, id).await {
-    //Some(tweet) => Some(tweet),
-    //None => {
     let tweet = api::get_tweet_by_id(id.try_into().unwrap()).await;
     match tweet {
         Some(tweet) => {
@@ -46,17 +44,12 @@ pub async fn load_tweet_with_reference_from_id(
             Some(tweet)
         }
         None => {
-            println!(
-                "Couldn't load tweet from id {}. It was probably deleted.",
-                id
-            );
+            println!("Couldn't load tweet from id {id}. It was probably deleted.");
             None
-        } //      }
-          //}
+        }       
     }
 }
 
-//unsure about this one
 pub async fn load_tweet_reference(
     db: &State<DatabaseConnection>,
     id: i64,
@@ -79,10 +72,10 @@ pub async fn load_user_from_twitter_handle(
     db: &State<DatabaseConnection>,
     twitter_handle: &str,
 ) -> User {
-    match data::read::user_by_twitter_handle(db, &twitter_handle).await {
+    match data::read::user_by_twitter_handle(db, twitter_handle).await {
         Some(user) => user,
         None => {
-            let user = api::get_user_by_twitter_handle(&twitter_handle).await;
+            let user = api::get_user_by_twitter_handle(twitter_handle).await;
             data::write::user(db, &user).await;
             user
         }
@@ -95,22 +88,20 @@ pub async fn load_user_tweets_from_twitter_handle(
 ) -> Vec<Tweet> {
     let user_tweets = data::read::users_tweets(db, twitter_handle).await;
     //need something better
-    if user_tweets.len() == 0 {
+    if user_tweets.is_empty() {
         let user_tweets =
             api::get_tweets_from_user(&load_user_from_twitter_handle(db, twitter_handle).await)
                 .await;
         data::write::tweets(db, &user_tweets).await;
         user_tweets
+    } else if has_new_tweets(db, twitter_handle).await {
+        println!("Adding new tweets");
+        let new_tweets = load_users_new_tweets(db, twitter_handle).await;
+        data::write::tweets(db, &new_tweets).await;
+        data::read::users_tweets(db, twitter_handle).await
     } else {
-        if has_new_tweets(db, twitter_handle).await {
-            println!("Adding new tweets");
-            let new_tweets = load_users_new_tweets(db, twitter_handle).await;
-            data::write::tweets(db, &new_tweets).await;
-            data::read::users_tweets(db, twitter_handle).await
-        } else {
-            println!("No new tweets to add");
-            user_tweets
-        }
+        println!("No new tweets to add");
+        user_tweets
     }
 }
 
@@ -189,36 +180,35 @@ pub async fn load_users_new_tweets(
     api::get_new_tweets_from_user(&user, &from).await
 }
 
+// pub async fn load_twitter_conversation_from_tweet_id(
+//     db: &State<DatabaseConnection>,
+//     tweet_id: i64,
+// ) -> Vec<Tweet> {
+//     let tweet = load_tweet_with_reference_from_id(db, tweet_id).await;
+//     match tweet {
+//         Some(tweet) => {
+//             data::read::conversation(
+//                 db,
+//                 tweet
+//                     .conversation_id
+//                     .expect("bad conversation id")
+//                     .as_u64()
+//                     .try_into()
+//                     .unwrap(),
+//             )
+//             .await
+//         }
+//         None => Vec::<Tweet>::new(),
+//     }
+// }
+//
+
+#[async_recursion]
 pub async fn load_twitter_conversation_from_tweet_id(
     db: &State<DatabaseConnection>,
     tweet_id: i64,
 ) -> Vec<Tweet> {
-    let tweet = load_tweet_with_reference_from_id(db, tweet_id).await;
-    println!("waiting");
-    tokio::time::sleep(Duration::from_millis(2000)).await;
-    match tweet {
-        Some(tweet) => {
-            data::read::conversation(
-                db,
-                tweet
-                    .conversation_id
-                    .expect("bad conversation id")
-                    .as_u64()
-                    .try_into()
-                    .unwrap(),
-            )
-            .await
-        }
-        None => Vec::<Tweet>::new(),
-    }
-}
-
-/*#[async_recursion]
-pub async fn load_twitter_conversation_from_tweet(
-    db: &State<DatabaseConnection>,
-    tweet_id: i64,
-) -> Vec<Tweet> {
-    let tweet = load_tweet_from_id(db, tweet_id).await;
+    let tweet = load_tweet_with_reference_from_id(db, tweet_id).await.unwrap_or_else(||panic!("Couldn't load tweet"));
     let mut output = vec![tweet];
     match &output[0].referenced_tweets {
         Some(referenced_tweets) => {
@@ -232,16 +222,8 @@ pub async fn load_twitter_conversation_from_tweet(
                     .expect("Failed to find replied to tweet")
                     .id
                     .as_u64();
-                let replied_to: Tweet = load_tweet_from_id(
-                    db,
-                    replied_to_id
-                        .try_into()
-                        .expect("Failed to parse i64 from u64"),
-                )
-                .await
-                .expect("Failed to get replied to tweet");
                 let mut conversation: Vec<Tweet> =
-                    load_twitter_conversation_from_tweet(db, replied_to).await;
+                    load_twitter_conversation_from_tweet_id(db, replied_to_id.try_into().unwrap_or_else(|error|panic!("Failed to parse {replied_to_id} from u64 to i64. \n\nError: {:?}", error))).await;
                 output.append(&mut conversation);
                 output
             } else {
@@ -255,7 +237,7 @@ pub async fn load_twitter_conversation_from_tweet(
         }
     }
 }
-*/
+
 
 pub async fn search_tweets_in_db(db: &State<DatabaseConnection>, search_query: &str) -> Vec<Tweet> {
     data::read::search_tweets_in_db(db, search_query).await
