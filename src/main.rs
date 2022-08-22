@@ -30,7 +30,7 @@ async fn user_by_id(db: &State<DatabaseConnection>, id: i64) -> String {
 
 #[get("/user/<twitter_handle>")]
 async fn user_by_twitter_handle(db: &State<DatabaseConnection>, twitter_handle: &str) -> String {
-    utils::to_ron(&app::load_user_from_twitter_handle(db, &twitter_handle).await)
+    utils::to_ron(&app::load_user_from_twitter_handle(db, twitter_handle).await)
 }
 
 #[get("/user/<twitter_handle>/info")]
@@ -38,14 +38,14 @@ async fn user_info_by_twitter_handle(
     db: &State<DatabaseConnection>,
     twitter_handle: &str,
 ) -> String {
-    let output = utils::to_ron(&app::load_user_from_twitter_handle(db, &twitter_handle).await);
+    let output = utils::to_ron(&app::load_user_from_twitter_handle(db, twitter_handle).await);
     println!("{}", output);
     output
 }
 //you may wish to get rid of this route
 #[get("/user/<twitter_handle>/latest")]
 async fn users_latest_tweet_by_id(db: &State<DatabaseConnection>, twitter_handle: &str) -> String {
-    utils::to_ron(&app::load_offset_datetime_for_users_latest_tweet(db, &twitter_handle).await)
+    utils::to_ron(&app::load_offset_datetime_for_users_latest_tweet(db, twitter_handle).await)
 }
 
 #[get("/user/<twitter_handle>/has_tweeted_since/<rfc3339_date>")]
@@ -57,7 +57,7 @@ async fn has_user_tweeted_since_date(
     let date_timestamp = chrono::DateTime::<FixedOffset>::parse_from_rfc3339(rfc3339_date)
         .expect("Failed to parse date")
         .timestamp();
-    utils::to_ron(&app::has_user_tweeted_since_date(db, &twitter_handle, date_timestamp).await)
+    utils::to_ron(&app::has_user_tweeted_since_date(db, twitter_handle, date_timestamp).await)
 }
 
 #[get("/user/<twitter_handle>/tweets-since/<rfc3339_date>")]
@@ -66,7 +66,7 @@ async fn users_tweets_since_date(
     twitter_handle: &str,
     rfc3339_date: &str,
 ) -> String {
-    utils::to_ron(&app::load_users_tweets_since_date(db, &twitter_handle, rfc3339_date).await)
+    utils::to_ron(&app::load_users_tweets_since_date(db, twitter_handle, rfc3339_date).await)
 }
 
 #[get("/user/<twitter_handle>/tweets")]
