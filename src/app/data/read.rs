@@ -15,10 +15,7 @@ pub async fn tweet_by_id(db: &State<DatabaseConnection>, id: i64) -> Option<Twee
         .await
         .expect("Failed to open the result option model tweet");
 
-    match tweet {
-        Some(tweet) => Some(tweet.to_tweet()),
-        None => None,
-    }
+    tweet.map(|tweet| tweet.to_tweet())
 }
 
 pub async fn tweet_reference_by_id(
@@ -32,10 +29,7 @@ pub async fn tweet_reference_by_id(
         .await
         .expect("Failed to open the result option model tweet");
 
-    match tweet_reference {
-        Some(tweet_reference) => Some(tweet_reference.to_tweet_reference_data()),
-        None => None,
-    }
+    tweet_reference.map(|tweet_reference| tweet_reference.to_tweet_reference_data())
 }
 
 pub async fn user_by_id(db: &State<DatabaseConnection>, id: i64) -> Option<User> {
@@ -46,10 +40,7 @@ pub async fn user_by_id(db: &State<DatabaseConnection>, id: i64) -> Option<User>
         .await
         .expect("Failed to open the result option model tweet");
 
-    match user {
-        Some(user) => Some(user.to_twitter_user()),
-        None => None,
-    }
+    user.map(|user| user.to_twitter_user())
 }
 
 pub async fn user_by_twitter_handle(
@@ -64,10 +55,7 @@ pub async fn user_by_twitter_handle(
         .await
         .expect("Failed to open the result option model tweet");
 
-    match user {
-        Some(user) => Some(user.to_twitter_user()),
-        None => None,
-    }
+    user.map(|user| user.to_twitter_user())
 }
 
 pub async fn tweets(db: &State<DatabaseConnection>) -> Vec<Tweet> {
@@ -144,7 +132,7 @@ pub async fn users_tweets_since_date(
         .order_by_desc(tweets::Column::CreatedAt)
         .all(db)
         .await
-        .expect(&format!("Failed to get @{username}'s tweets"))
+        .unwrap_or_else(|error| panic!("Failed to get @{username}'s tweets from the database. Error: {:?}", error))
         .into_iter()
         .map(|b| b.to_tweet())
         .collect::<Vec<twitter_v2::Tweet>>()
@@ -157,7 +145,7 @@ pub async fn does_conversation_exist(db: &State<DatabaseConnection>, id: i64) ->
         .filter(conversations::Column::Id.eq(id))
         .all(db)
         .await
-        .expect("Failed to get conversation {id}")
+        .unwrap_or_else(|error|panic!("Failed to get conversation {id} from the database. Error {:?}", error))
         .len()
         == 1
 }
@@ -169,7 +157,7 @@ pub async fn does_tweet_exist(db: &State<DatabaseConnection>, id: i64) -> bool {
         .filter(tweets::Column::Id.eq(id))
         .all(db)
         .await
-        .expect("Failed to get tweet {id}")
+        .unwrap_or_else(|error| panic!("Failed to read tweet {id} from database. Error {:?}", error))
         .len()
         == 1
 }
@@ -184,10 +172,7 @@ pub async fn latest_tweet_from_user(db: &State<DatabaseConnection>, id: i64) -> 
         .await
         .expect("Failed to get tweet model");
 
-    match res {
-        Some(tweet_model) => Some(tweet_model.to_tweet()),
-        None => None,
-    }
+    res.map(|tweet_model| tweet_model.to_tweet())
 }
 
 pub async fn search_tweets_in_db(db: &State<DatabaseConnection>, search_query: &str) -> Vec<Tweet> {
