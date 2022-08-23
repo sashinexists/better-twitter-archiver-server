@@ -13,17 +13,32 @@ use twitter_v2::{Tweet, User};
 pub async fn tweet(db: &State<DatabaseConnection>, tweet: &Tweet) {
     let author_id = tweet
         .author_id
-        .unwrap_or_else(||panic!("Couldn't get author_id from tweet. \n\nTweet: {:?}",tweet))
+        .unwrap_or_else(|| panic!("Couldn't get author_id from tweet. \n\nTweet: {:?}", tweet))
         .as_u64()
         .try_into()
-        .unwrap_or_else(|error|panic!("Failed to parse author id from u64 to i64. \n\nTweet: {:?}\n\nError: {:?}\n", tweet, error));
+        .unwrap_or_else(|error| {
+            panic!(
+                "Failed to parse author id from u64 to i64. \n\nTweet: {:?}\n\nError: {:?}\n",
+                tweet, error
+            )
+        });
 
     let conversation_id = tweet
         .conversation_id
-        .unwrap_or_else(||panic!("Couldn't get conversation id from tweet. \n\nTweet: {:?}",tweet))
+        .unwrap_or_else(|| {
+            panic!(
+                "Couldn't get conversation id from tweet. \n\nTweet: {:?}",
+                tweet
+            )
+        })
         .as_u64()
         .try_into()
-        .unwrap_or_else(|error|panic!("Failed to parse conversation id from u64 to i64. \n\nTweet: {:?}\n\nError: {:?}\n", tweet, error));
+        .unwrap_or_else(|error| {
+            panic!(
+                "Failed to parse conversation id from u64 to i64. \n\nTweet: {:?}\n\nError: {:?}\n",
+                tweet, error
+            )
+        });
 
     load_user_from_id(db, author_id).await;
     if !super::read::does_conversation_exist(db, conversation_id).await {
@@ -52,26 +67,36 @@ pub async fn tweet(db: &State<DatabaseConnection>, tweet: &Tweet) {
 }
 
 pub async fn tweet_with_reference(db: &State<DatabaseConnection>, tweet: &Tweet) {
-    let tweet_id: i64 = tweet
-        .id
-        .as_u64()
-        .try_into()
-        .unwrap_or_else(|error|panic!("Failed to parse tweet id from u64 to i64. \n\nTweet: {:?}\n\nError: {:?}\n", tweet, error));
+    let tweet_id: i64 = tweet.id.as_u64().try_into().unwrap_or_else(|error| {
+        panic!(
+            "Failed to parse tweet id from u64 to i64. \n\nTweet: {:?}\n\nError: {:?}\n",
+            tweet, error
+        )
+    });
 
     let author_id = tweet
         .author_id
         .expect("Bad author id")
         .as_u64()
         .try_into()
-        .unwrap_or_else(|error|panic!("Failed to parse author id from u64 to i64. \n\nTweet: {:?}\n\nError: {:?}\n", tweet, error));
+        .unwrap_or_else(|error| {
+            panic!(
+                "Failed to parse author id from u64 to i64. \n\nTweet: {:?}\n\nError: {:?}\n",
+                tweet, error
+            )
+        });
 
     let conversation_id = tweet
         .conversation_id
         .expect("Bad conversation id")
         .as_u64()
         .try_into()
-        .unwrap_or_else(|error|panic!("Failed to parse conversation id from u64 to i64. \n\nTweet: {:?}\n\nError: {:?}\n", tweet, error));
-
+        .unwrap_or_else(|error| {
+            panic!(
+                "Failed to parse conversation id from u64 to i64. \n\nTweet: {:?}\n\nError: {:?}\n",
+                tweet, error
+            )
+        });
 
     load_user_from_id(db, author_id).await;
     if !super::read::does_conversation_exist(db, conversation_id).await {
@@ -82,11 +107,9 @@ pub async fn tweet_with_reference(db: &State<DatabaseConnection>, tweet: &Tweet)
 
     let to_write = tweets::ActiveModel {
         id: ActiveValue::set(tweet_id),
-        conversation_id: ActiveValue::set(conversation_id
-        ),
+        conversation_id: ActiveValue::set(conversation_id),
         content: ActiveValue::set(tweet.text.clone()),
-        author_id: ActiveValue::set(author_id
-        ),
+        author_id: ActiveValue::set(author_id),
         created_at: ActiveValue::set(converted_offset_date),
     };
 

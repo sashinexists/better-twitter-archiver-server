@@ -74,6 +74,12 @@ async fn users_tweets(db: &State<DatabaseConnection>, twitter_handle: &str) -> S
     utils::to_ron(&app::load_user_tweets_from_twitter_handle(db, twitter_handle).await)
 }
 
+
+#[get("/user/<twitter_handle>/conversations")]
+async fn users_conversations(db: &State<DatabaseConnection>, twitter_handle: &str) -> String {
+    utils::to_ron(&app::load_user_conversations_from_twitter_handle(db, twitter_handle).await)
+}
+
 #[get("/tweet/<id>")]
 async fn tweet_by_id(db: &State<DatabaseConnection>, id: i64) -> String {
     utils::to_ron(&app::load_tweet_from_id(db, id).await)
@@ -107,6 +113,7 @@ async fn rocket() -> _ {
             user_by_id,
             user_by_twitter_handle,
             users_tweets,
+            users_conversations,
             user_info_by_twitter_handle,
             conversation_by_tweet_id,
             users_tweets_since_date,

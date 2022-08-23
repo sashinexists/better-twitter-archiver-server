@@ -1,8 +1,10 @@
-use rocket::time::OffsetDateTime;
+use std::time::Duration;
+
+use rocket::time::{OffsetDateTime };
 use twitter_v2::authorization::BearerToken;
 use twitter_v2::query::{TweetField, UserField};
 use twitter_v2::{Tweet, TwitterApi, User};
-
+use tokio::time::sleep;
 pub async fn get_tweets_from_user(user: &User) -> Vec<Tweet> {
     let twitter_handle = &user.username;
     load_api()
@@ -158,7 +160,8 @@ pub async fn get_tweets_from_user_until_id(user: &User, id: u64) -> Vec<Tweet> {
 }
 
 pub async fn get_tweet_by_id(id: u64) -> Option<Tweet> {
-    load_api()
+
+    match load_api()
         .await
         .get_tweet(id)
         .tweet_fields([
@@ -169,9 +172,30 @@ pub async fn get_tweet_by_id(id: u64) -> Option<Tweet> {
             TweetField::CreatedAt,
         ])
         .send()
-        .await
-        .unwrap_or_else(|error| panic!("Failed to get tweet of id {id} from the twitter api. \n\nError: {:?}", error))
-        .into_data()
+        .await{
+            Ok(tweet_response) => tweet_response.into_data(),
+            Err(error) => {
+
+            println!("Failed to get tweet of id {id} from the twitter api. \n\nError: {:?}\n\nWaiting 15 minutes and trying again...", error);
+            tokio::time::sleep(Duration::from_secs(910)).await;
+            println!("Finished waiting!");
+            load_api()
+                .await
+                .get_tweet(id)
+                .tweet_fields([
+                    TweetField::Attachments,
+                    TweetField::ReferencedTweets,
+                    TweetField::ConversationId,
+                    TweetField::AuthorId,
+                    TweetField::CreatedAt,
+                ])
+                .send()
+                .await
+                .unwrap_or_else(|error|panic!("Second Attempt: Failed to get tweet of id {id} from the twitter api. \n\nError: {:?}", error))
+                .into_data()
+            }
+        }
+
 }
 
 
