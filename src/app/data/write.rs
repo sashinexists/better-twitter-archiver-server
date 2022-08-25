@@ -11,6 +11,7 @@ use sea_orm::{ActiveValue, DatabaseConnection, EntityTrait};
 use twitter_v2::{Tweet, User};
 
 pub async fn tweet(db: &State<DatabaseConnection>, tweet: &Tweet) {
+    let tweet_id:i64 = tweet.id.as_u64().try_into().unwrap_or_else(|error|panic!("Failed to parse u64 to i64. \n\nError: {:?}", error));
     let author_id = tweet
         .author_id
         .unwrap_or_else(|| panic!("Couldn't get author_id from tweet. \n\nTweet: {:?}", tweet))
@@ -48,7 +49,7 @@ pub async fn tweet(db: &State<DatabaseConnection>, tweet: &Tweet) {
     let converted_offset_date = convert_date_to_chrono(tweet.created_at);
 
     let to_write = tweets::ActiveModel {
-        id: ActiveValue::set(tweet.id.as_u64().try_into().expect("Bad tweet id")),
+        id: ActiveValue::set(tweet_id),
         conversation_id: ActiveValue::set(conversation_id),
         content: ActiveValue::set(tweet.text.clone()),
         author_id: ActiveValue::set(author_id),
@@ -59,18 +60,18 @@ pub async fn tweet(db: &State<DatabaseConnection>, tweet: &Tweet) {
 
     match res {
         Ok(_res) => (),
-        Err(e) => println!(
-            "Failed to to write tweet {} to the database because {}",
-            tweet.id, e
+        Err(_error) => println!(
+            "Failed to to write tweet of id {} to the database.",
+            tweet.id
         ),
     }
 }
 
 pub async fn tweet_with_reference(db: &State<DatabaseConnection>, tweet: &Tweet) {
-    let tweet_id: i64 = tweet.id.as_u64().try_into().unwrap_or_else(|error| {
+    let tweet_id: i64 = tweet.id.as_u64().try_into().unwrap_or_else(|_error| {
         panic!(
-            "Failed to parse tweet id from u64 to i64. \n\nTweet: {:?}\n\nError: {:?}\n",
-            tweet, error
+            "\nFailed to parse tweet id from u64 to i64.\n",
+            
         )
     });
 
@@ -81,7 +82,7 @@ pub async fn tweet_with_reference(db: &State<DatabaseConnection>, tweet: &Tweet)
         .try_into()
         .unwrap_or_else(|error| {
             panic!(
-                "Failed to parse author id from u64 to i64. \n\nTweet: {:?}\n\nError: {:?}\n",
+                "\nFailed to parse author_id of tweet of id {tweet_id} from u64 to i64. \n\nTweet: {:?}\n\nError: {:?}\n",
                 tweet, error
             )
         });
@@ -117,9 +118,9 @@ pub async fn tweet_with_reference(db: &State<DatabaseConnection>, tweet: &Tweet)
 
     match res {
         Ok(_res) => (),
-        Err(e) => println!(
-            "Failed to to write tweet {} to the database because {}",
-            tweet.id, e
+        Err(_error) => println!(
+            "Failed to to write tweet of id {} to the database.",
+            tweet.id
         ),
     }
 
@@ -187,9 +188,9 @@ pub async fn tweet_reference(
 
     match res {
         Ok(_res) => (),
-        Err(e) => println!(
-            "Failed to add tweet reference {} to the database because of {}",
-            referenced_tweet_id, e
+        Err(_e) => println!(
+            "Failed to add tweet reference {} to the database.",
+            referenced_tweet_id 
         ),
     }
 }

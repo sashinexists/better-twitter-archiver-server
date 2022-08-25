@@ -6,7 +6,9 @@ use sea_orm::*;
 const DATABASE_URL: &str = "sqlite:./tweets.db";
 
 pub(crate) async fn set_up_db() -> Result<DatabaseConnection, DbErr> {
-    let db = Database::connect(DATABASE_URL).await?;
+    let mut opt = ConnectOptions::new(DATABASE_URL.to_owned());
+    opt.sqlx_logging(false);
+    let db = Database::connect(opt).await?;
 
     // Replace with your desired database name
     let db_name = "tweets_db";
@@ -41,3 +43,5 @@ pub(crate) async fn set_up_db() -> Result<DatabaseConnection, DbErr> {
 
     Ok(db)
 }
+
+

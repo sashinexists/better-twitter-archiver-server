@@ -4,22 +4,27 @@ use futures::{executor::block_on, StreamExt};
 use rocket::{http::ext::IntoCollection, time::OffsetDateTime, State};
 use sea_orm::DatabaseConnection;
 use twitter_v2::{data::ReferencedTweetKind::RepliedTo, Tweet, User};
-
+use std::collections::VecDeque;
 pub mod api;
 pub mod data;
 
 pub async fn load_tweet_from_id(db: &State<DatabaseConnection>, id: i64) -> Option<Tweet> {
+    println!("Reading tweet of id {id} from database.");
     match data::read::tweet_by_id(db, id).await {
-        Some(tweet) => Some(tweet),
+        Some(tweet) => {
+            println!("Successfully read tweet of id {id} from database.");
+            Some(tweet)
+        }
         None => match api::get_tweet_by_id(id.try_into().unwrap_or_else(|error| {
             panic!(
-                "Failed to parse tweet id {id} from i64 to u64. \n\nError: {:?}",
+                "Failed to parse tweet id {id} from i64 to u64. Error: {:?}",
                 error
             )
         }))
         .await
         {
             Some(tweet) => {
+                println!("Tweet not in database. Reading from API and writing to database.");
                 data::write::tweet(db, &tweet).await;
                 Some(tweet)
             }
@@ -109,9 +114,9 @@ pub async fn load_user_conversations_from_twitter_handle(
 ) -> Vec<Vec<Tweet>> {
     let users_tweets = load_user_tweets_from_twitter_handle(db, twitter_handle).await;
     let mut output: Vec<Vec<Tweet>> = Vec::<Vec<Tweet>>::new();
-    for (i, tweet) in users_tweets.iter().enumerate().take(30) {
+    for (i, tweet) in users_tweets.iter().enumerate().take(400).skip(200) {
         let tweet_id = &tweet.id.as_u64();
-        println!("Loading conversation {i} from tweet of id {tweet_id}");
+        println!("\nLoading conversation {i} from tweet of id {tweet_id}\n");
         output.push(
             load_twitter_conversation_from_tweet_id(db, tweet.id.as_u64().try_into().unwrap())
                 .await,
@@ -218,51 +223,35 @@ pub async fn load_users_new_tweets(
 // }
 //
 
-#[async_recursion]
 pub async fn load_twitter_conversation_from_tweet_id(
     db: &State<DatabaseConnection>,
     tweet_id: i64,
 ) -> Vec<Tweet> {
-    let tweet = load_tweet_with_reference_from_id(db, tweet_id)
-        .await
-        .unwrap_or_else(|| panic!("Couldn't load tweet"));
-    let mut output = vec![tweet];
-    match &output[0].referenced_tweets {
+    let tweet = load_tweet_with_reference_from_id(db, tweet_id).await;
+    let mut output: VecDeque<Option<Tweet>> = VecDeque::from(vec![tweet]);
+    let mut working: VecDeque<Tweet> = output.clone().into_iter().flatten().collect();
+    match working[0].clone().referenced_tweets {
         Some(referenced_tweets) => {
-            if referenced_tweets
+            while referenced_tweets
                 .iter()
                 .any(|tweet| tweet.kind == RepliedTo)
             {
-                let replied_to_id = referenced_tweets
+                let replied_to_id: i64 = referenced_tweets
                     .iter()
                     .find(|tweet| tweet.kind == RepliedTo)
                     .expect("Failed to find replied to tweet")
                     .id
-                    .as_u64();
-                let mut conversation: Vec<Tweet> = load_twitter_conversation_from_tweet_id(
-                    db,
-                    replied_to_id.try_into().unwrap_or_else(|error| {
-                        panic!(
-                            "Failed to parse {replied_to_id} from u64 to i64. \n\nError: {:?}",
-                            error
-                        )
-                    }),
-                )
-                .await;
-                output.append(&mut conversation);
-                output
-            } else {
-                output.reverse();
-                output
+                    .as_u64()
+                    .try_into()
+                    .unwrap();
+                output.push_front(load_tweet_with_reference_from_id(db, replied_to_id).await);
+                working = output.clone().into_iter().flatten().collect();
             }
         }
-        None => {
-            output.reverse();
-            output
-        }
+        None => {}
     }
+    Vec::from(working)
 }
-
 pub async fn search_tweets_in_db(db: &State<DatabaseConnection>, search_query: &str) -> Vec<Tweet> {
     data::read::search_tweets_in_db(db, search_query).await
 }
