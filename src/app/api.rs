@@ -1,15 +1,15 @@
 use std::time::Duration;
 
-use rocket::time::{OffsetDateTime };
+use futures::future::join_all;
+use rocket::time::OffsetDateTime;
 use twitter_v2::authorization::BearerToken;
 use twitter_v2::query::{TweetField, UserField};
 use twitter_v2::{Tweet, TwitterApi, User};
-use tokio::time::sleep;
 
-use crate::utils::TweetData;
+use crate::utils::{TweetData, UserData};
 pub async fn get_tweets_from_user(user: &User) -> Vec<TweetData> {
     let twitter_handle = &user.username;
-    load_api()
+    let api_tweets:Vec<Tweet> =load_api()
         .await
         .get_user_tweets(user.id)
         .max_results(100)
@@ -31,12 +31,13 @@ pub async fn get_tweets_from_user(user: &User) -> Vec<TweetData> {
         .into_data()
         .unwrap_or_else(|| {
             panic!("Failed to open @{twitter_handle}'s tweets after fetching them from the server.")
-        })
+        });
+    join_all(api_tweets.into_iter().map(|api_tweet|TweetData::from_api_tweet(Some(api_tweet)))).await
 }
 
 pub async fn get_latest_tweet_from_user(user: &User) -> TweetData {
     let twitter_handle = &user.username;
-    load_api()
+    let api_tweet =load_api()
         .await
         .get_user_tweets(user.id)
         .max_results(5)
@@ -61,12 +62,13 @@ pub async fn get_latest_tweet_from_user(user: &User) -> TweetData {
         })
         .first()
         .unwrap_or_else(|| panic!("Failed to get @{twitter_handle}'s latest tweet."))
-        .clone()
+        .clone();
+    TweetData::from_api_tweet(Some(api_tweet)).await
 }
 
 pub async fn get_new_tweets_from_user(user: &User, from: &OffsetDateTime) -> Vec<TweetData> {
     let twitter_handle = &user.username;
-    load_api()
+    let api_tweets:Vec<Tweet> =load_api()
         .await
         .get_user_tweets(user.id)
         .start_time(*from)
@@ -83,42 +85,14 @@ pub async fn get_new_tweets_from_user(user: &User, from: &OffsetDateTime) -> Vec
         .into_data()
         .unwrap_or_else(|| {
             panic!("Failed to open @{twitter_handle}'s new tweets after fetching them from the server.")
-        })
+        });
+    join_all(api_tweets.into_iter().map(|api_tweet|TweetData::from_api_tweet(Some(api_tweet)))).await
 }
 
-pub async fn get_all_tweets_from_user(user: &User) -> Vec<TweetData> {
-    let twitter_handle = &user.username;
-    let mut output = get_first_hundred_tweets_from_user(user).await;
-    const FIRST_TWEET_ID: u64 = 1012187366587392000; // 1490542591154130947; //@yudapearls first tweet id = 1012187366587392000
-    let mut last_id = output
-        .last()
-        .unwrap_or_else(|| {
-            panic!("Failed to get the last tweet from the @{twitter_handle}'s first hundred.",)
-        })
-        .id
-        .as_u64();
-    let mut i = 1;
-    while i < 32 {
-        output.append(&mut get_tweets_from_user_until_id(user, last_id).await);
-        last_id = output
-            .last()
-            .unwrap_or_else(|| {
-                panic!(
-                    "Failed to get the last tweet from this batch of @{twitter_handle}'s tweets.",
-                )
-            })
-            .id
-            .as_u64();
-        println!("Loading tweets up to {i}00");
-        i += 1;
-    }
-
-    output
-}
 
 pub async fn get_first_hundred_tweets_from_user(user: &User) -> Vec<TweetData> {
     let twitter_handle = &user.username;
-    load_api()
+    let api_tweets:Vec<Tweet> =load_api()
         .await
         .get_user_tweets(user.id)
         .max_results(100) //this line gets the max results
@@ -135,12 +109,13 @@ pub async fn get_first_hundred_tweets_from_user(user: &User) -> Vec<TweetData> {
         .into_data()
         .unwrap_or_else(|| {
             panic!("Failed to open @{twitter_handle}'s first hunrdred tweets after fetching them from the twitter api.")
-        })
+        });
+    join_all(api_tweets.into_iter().map(|api_tweet|TweetData::from_api_tweet(Some(api_tweet)))).await
 }
 
 pub async fn get_tweets_from_user_until_id(user: &User, id: u64) -> Vec<TweetData> {
     let twitter_handle = &user.username;
-    load_api()
+    let api_tweets:Vec<Tweet> =load_api()
         .await
         .get_user_tweets(user.id)
         .max_results(100) 
@@ -158,12 +133,13 @@ pub async fn get_tweets_from_user_until_id(user: &User, id: u64) -> Vec<TweetDat
         .into_data()
         .unwrap_or_else(|| {
             panic!("Failed to open this batch of @{twitter_handle}'s tweets after fetching them from the twitter api.")
-        })
+        });
+    join_all(api_tweets.into_iter().map(|api_tweet|TweetData::from_api_tweet(Some(api_tweet)))).await
 }
 
 pub async fn get_tweet_by_id(id: u64) -> TweetData {
 
-    match load_api()
+    let api_tweet = match load_api()
         .await
         .get_tweet(id)
         .tweet_fields([
@@ -196,12 +172,15 @@ pub async fn get_tweet_by_id(id: u64) -> TweetData {
                 .unwrap_or_else(|error|panic!("Second Attempt: Failed to get tweet of id {id} from the twitter api. \n\nError: {:?}", error))
                 .into_data()
             }
-        }
+        };
+
+    TweetData::from_api_tweet(api_tweet).await
 
 }
 
 
 pub async fn get_user_by_twitter_handle(twitter_handle: &str) -> UserData {
+    let api_user =
     load_api()
         .await
         .get_user_by_username(twitter_handle)
@@ -212,10 +191,12 @@ pub async fn get_user_by_twitter_handle(twitter_handle: &str) -> UserData {
         .into_data()
         .unwrap_or_else(|| {
             panic!("Failed to open @{twitter_handle}'s info after fetching it from the twitter api.")
-        })
+        });
+    UserData::from_api_user(&api_user).await
 }
 
 pub async fn get_user_by_id(id: u64) -> UserData {
+    let api_user =
     load_api()
         .await
         .get_user(id)
@@ -226,7 +207,8 @@ pub async fn get_user_by_id(id: u64) -> UserData {
         .into_data()
         .unwrap_or_else(|| {
             panic!("Failed to open user of id {id}'s info after fetching it from the twitter api.")
-        })
+        });
+    UserData::from_api_user(&api_user).await
 }
 
 pub async fn load_api() -> TwitterApi<BearerToken> {

@@ -1,5 +1,5 @@
 use chrono::{DateTime, FixedOffset};
-use futures::{StreamExt, future::join_all};
+use futures::{future::join_all, StreamExt};
 use rocket::{
     serde::Serialize,
     time::{format_description, OffsetDateTime},
@@ -9,14 +9,15 @@ use sea_orm::{ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFi
 use twitter_v2::{
     data::{ReferencedTweet, ReferencedTweetKind},
     id::NumericId,
+    Tweet, User,
 };
 
 use crate::app::data::entities::prelude::*;
 use crate::app::data::entities::*;
 
 pub struct TweetData {
-    tweet: Option<tweets::Model>,
-    references: Vec<tweet_references::Model>,
+    pub tweet: Option<tweets::Model>,
+    pub references: Vec<tweet_references::Model>,
 }
 
 impl TweetData {
@@ -51,7 +52,10 @@ impl TweetData {
         Self { tweet, references }
     }
 
-    pub async fn read_from_data_model(db:&State<DatabaseConnection>, tweet_model:tweets::Model) -> Self {
+    pub async fn read_from_data_model(
+        db: &State<DatabaseConnection>,
+        tweet_model: tweets::Model,
+    ) -> Self {
         let db = db as &DatabaseConnection;
         let references = TweetReferences::find()
             .filter(tweet_references::Column::SourceTweetId.eq(tweet_model.id))
@@ -60,8 +64,7 @@ impl TweetData {
             .unwrap_or_else(|error| {
                 panic!(
                     "Failed to get tweet references for tweet of id {}. Error: {:?}",
-                    tweet_model.id,
-                    error
+                    tweet_model.id, error
                 )
             })
             .into_iter()
@@ -72,8 +75,57 @@ impl TweetData {
         }
     }
 
+    pub async fn from_api_tweet(tweet: Option<Tweet>) -> Self {
+        if let Some(tweet) = tweet{
+        let references_data: Vec<TweetReferenceData> = tweet
+            .referenced_tweets
+            .unwrap_or_else(|| panic!("Failed to get references for tweet of id {}", tweet.id))
+            .iter()
+            .map(|reference| {
+                TweetReferenceData::from_referenced_tweet(u64_to_i64(tweet.id.as_u64()), reference)
+            })
+            .collect();
+        let references: Vec<tweet_references::Model> = references_data
+            .into_iter()
+            .map(|reference| tweet_references::Model {
+                source_tweet_id: reference.source_tweet_id,
+                reference_type: TweetReferenceData::type_to_string(&reference),
+                referenced_tweet_id: reference.reference_tweet_id,
+            })
+            .collect();
+        Self {
+            tweet: Some(tweets::Model {
+                id: u64_to_i64(tweet.id.as_u64()),
+                content: tweet.text,
+                author_id: u64_to_i64(
+                    tweet
+                        .author_id
+                        .unwrap_or_else(|| {
+                            panic!("Failed to get author_id for tweet of id {}.\n", tweet.id)
+                        })
+                        .as_u64(),
+                ),
+                conversation_id: u64_to_i64(
+                    tweet
+                        .conversation_id
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "Failed to get conversation_id for tweet of id {}.\n",
+                                tweet.id
+                            )
+                        })
+                        .as_u64(),
+                ),
+                created_at: convert_date_to_chrono(tweet.created_at),
+            }),
+            references,
+        }} else {
+            TweetData{ tweet: None, references: Vec::new() }
+        }
+    }
+
     pub async fn read_many(db: &State<DatabaseConnection>, ids: &[i64]) -> Vec<Self> {
-        join_all(ids.into_iter().map(|id|Self::read(db,*id))).await
+        join_all(ids.into_iter().map(|id| Self::read(db, *id))).await
     }
 
     pub async fn write(&self, db: &State<DatabaseConnection>) {
@@ -132,31 +184,50 @@ pub struct UserData {
 }
 
 impl UserData {
-    pub async fn read(db: &State<DatabaseConnection>, id:i64) -> Self {
-        let db = db as &DatabaseConnection;
-        let user = Users::find_by_id(id)
-            .one(db)
-            .await
-            .unwrap_or_else(|error| {
-                panic!("Failed to get tweet {id} from database. Error: {:?}", error)
-            });
-
-        Self {user}
-
+    pub async fn from_api_user(api_user: &User) -> Self {
+        Self {
+            user: Some(users::Model {
+                id: u64_to_i64(api_user.id.as_u64()),
+                name: api_user.name.clone(),
+                username: api_user.username.clone(),
+                description: api_user.description.clone().unwrap_or_else(|| {
+                    panic!("Failed to parse description for @{}", api_user.username)
+                }),
+            }),
+        }
     }
 
+    pub async fn from_data_model(user_from_db:users::Model)-> Self {
+        UserData {
+            user: Some(user_from_db)
+        }
+    }
 
-    pub async fn read_from_twitter_handle(db: &State<DatabaseConnection>, twitter_handle:&str) -> Self {
+    pub async fn read(db: &State<DatabaseConnection>, id: i64) -> Self {
+        let db = db as &DatabaseConnection;
+        let user = Users::find_by_id(id).one(db).await.unwrap_or_else(|error| {
+            panic!("Failed to get tweet {id} from database. Error: {:?}", error)
+        });
+
+        Self { user }
+    }
+
+    pub async fn read_from_twitter_handle(
+        db: &State<DatabaseConnection>,
+        twitter_handle: &str,
+    ) -> Self {
         let db = db as &DatabaseConnection;
         let user = Users::find()
             .filter(users::Column::Username.eq(twitter_handle))
             .one(db)
             .await
             .unwrap_or_else(|error| {
-                panic!("Failed to read user @{twitter_handle} from database. Error: {:?}", error)
+                panic!(
+                    "Failed to read user @{twitter_handle} from database. Error: {:?}",
+                    error
+                )
             });
-        Self {user}
-
+        Self { user }
     }
 
     pub async fn write(&self, db: &State<DatabaseConnection>) {
@@ -164,8 +235,8 @@ impl UserData {
             let to_write = users::ActiveModel {
                 id: ActiveValue::set(user.id),
                 name: ActiveValue::set(user.name),
-                username:ActiveValue::set(user.username.clone()), 
-                description: ActiveValue::set(user.description)
+                username: ActiveValue::set(user.username.clone()),
+                description: ActiveValue::set(user.description),
             };
 
             let res = Users::insert(to_write).exec(db.inner()).await;
@@ -178,13 +249,12 @@ impl UserData {
                 ),
             }
         }
-        
     }
 }
 
 pub struct ConversationData {
-    id:i64,
-    tweets:Vec<TweetData>
+    id: i64,
+    tweets: Vec<TweetData>,
 }
 
 pub fn convert_date_to_chrono(date: Option<OffsetDateTime>) -> DateTime<FixedOffset> {

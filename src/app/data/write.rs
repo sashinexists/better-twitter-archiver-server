@@ -2,6 +2,7 @@ use super::super::super::utils::{convert_date_to_chrono, TweetReferenceData};
 use super::entities::prelude::*;
 use super::entities::*;
 use crate::app::{load_tweet_from_id, load_user_from_id};
+use crate::utils::TweetData;
 use async_recursion::async_recursion;
 use futures::StreamExt;
 use rocket::State;
