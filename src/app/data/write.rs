@@ -10,8 +10,12 @@ use twitter_v2::data::ReferencedTweet;
 use sea_orm::{ActiveValue, DatabaseConnection, EntityTrait};
 use twitter_v2::{Tweet, User};
 
-pub async fn tweet(db: &State<DatabaseConnection>, tweet: &Tweet) {
-    let tweet_id:i64 = tweet.id.as_u64().try_into().unwrap_or_else(|error|panic!("Failed to parse u64 to i64. \n\nError: {:?}", error));
+pub async fn tweet(db: &State<DatabaseConnection>, tweet: &TweetData) {
+    let tweet_id: i64 = tweet
+        .id
+        .as_u64()
+        .try_into()
+        .unwrap_or_else(|error| panic!("Failed to parse u64 to i64. \n\nError: {:?}", error));
     let author_id = tweet
         .author_id
         .unwrap_or_else(|| panic!("Couldn't get author_id from tweet. \n\nTweet: {:?}", tweet))
@@ -65,15 +69,22 @@ pub async fn tweet(db: &State<DatabaseConnection>, tweet: &Tweet) {
             tweet.id
         ),
     }
+
+
+    let referenced_tweets = tweet.referenced_tweets.clone();
+
+    match referenced_tweets {
+        Some(references) => tweet_references(db, tweet_id, references).await,
+        None => println!("No referenced tweets"),
+    }
 }
 
 pub async fn tweet_with_reference(db: &State<DatabaseConnection>, tweet: &Tweet) {
-    let tweet_id: i64 = tweet.id.as_u64().try_into().unwrap_or_else(|_error| {
-        panic!(
-            "\nFailed to parse tweet id from u64 to i64.\n",
-            
-        )
-    });
+    let tweet_id: i64 = tweet
+        .id
+        .as_u64()
+        .try_into()
+        .unwrap_or_else(|_error| panic!("\nFailed to parse tweet id from u64 to i64.\n",));
 
     let author_id = tweet
         .author_id
@@ -190,7 +201,7 @@ pub async fn tweet_reference(
         Ok(_res) => (),
         Err(_e) => println!(
             "Failed to add tweet reference {} to the database.",
-            referenced_tweet_id 
+            referenced_tweet_id
         ),
     }
 }

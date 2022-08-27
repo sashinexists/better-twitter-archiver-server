@@ -3,6 +3,9 @@
 use chrono::{DateTime, FixedOffset};
 use rocket::time::OffsetDateTime;
 use sea_orm::entity::prelude::*;
+use twitter_v2::data::ReferencedTweet;
+
+use crate::utils::TweetReferenceData;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "tweets")]
@@ -16,7 +19,7 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn to_tweet(&self) -> twitter_v2::Tweet {
+    pub fn to_tweet(&self, references:Vec<TweetReferenceData>) -> twitter_v2::Tweet {
         twitter_v2::Tweet {
             id: twitter_v2::id::NumericId::new(self.id.try_into().unwrap()),
             text: self.content.clone(),
@@ -41,7 +44,7 @@ impl Model {
             possibly_sensitive: None,
             promoted_metrics: None,
             public_metrics: None,
-            referenced_tweets: None,
+            referenced_tweets: Some(references.into_iter().map(|reference|reference.to_referenced_tweet()).collect::<Vec<ReferencedTweet>>()),
             reply_settings: None,
             source: None,
             withheld: None,

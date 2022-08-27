@@ -1,84 +1,39 @@
-use crate::{app::load_user_from_twitter_handle, utils::TweetReferenceData};
+use crate::{app::load_user_from_twitter_handle, utils::{TweetReferenceData, TweetData, UserData, ConversationData}};
 
 use super::entities::prelude::*;
 use super::entities::*;
 use chrono::FixedOffset;
+use futures::future::join_all;
 use rocket::State;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 use twitter_v2::{Tweet, User};
 
-pub async fn tweet_by_id(db: &State<DatabaseConnection>, id: i64) -> Option<Tweet> {
-    let db = db as &DatabaseConnection;
-
-    Tweets::find_by_id(id)
-        .one(db)
-        .await
-        .unwrap_or_else(|error| {
-            panic!("Failed to get tweet {id} from database. Error: {:?}", error)
-        })
-        .map(|tweet| tweet.to_tweet())
+pub async fn tweet_by_id(db: &State<DatabaseConnection>, id: i64) -> TweetData {
+    TweetData::read(db, id).await
 }
 
-pub async fn tweet_reference_by_id(
-    db: &State<DatabaseConnection>,
-    id: i64,
-) -> Option<TweetReferenceData> {
-    let db = db as &DatabaseConnection;
 
-    TweetReferences::find_by_id(id)
-        .one(db)
-        .await
-        .unwrap_or_else(|error| {
-            panic!(
-                "Failed to get tweet reference {id} from database. Error: {:?}",
-                error
-            )
-        })
-        .map(|tweet_reference| tweet_reference.to_tweet_reference_data())
-}
 
-pub async fn user_by_id(db: &State<DatabaseConnection>, id: i64) -> Option<User> {
-    let db = db as &DatabaseConnection;
-
-    Users::find_by_id(id)
-        .one(db)
-        .await
-        .unwrap_or_else(|error| panic!("Failed to get user {id} from database. Error: {:?}", error))
-        .map(|user| user.to_twitter_user())
+pub async fn user_by_id(db: &State<DatabaseConnection>, id: i64) -> UserData {
+    UserData::read(db, id).await
 }
 
 pub async fn user_by_twitter_handle(
     db: &State<DatabaseConnection>,
     twitter_handle: &str,
-) -> Option<User> {
-    let db = db as &DatabaseConnection;
-
-    Users::find()
-        .filter(users::Column::Username.eq(twitter_handle))
-        .one(db)
-        .await
-        .unwrap_or_else(|error| {
-            panic!(
-                "Failed to get user @{twitter_handle} from database. Error: {:?}",
-                error
-            )
-        })
-        .map(|user| user.to_twitter_user())
+) -> UserData{
+    UserData::read_from_twitter_handle(db, twitter_handle).await
 }
 
-pub async fn tweets(db: &State<DatabaseConnection>) -> Vec<Tweet> {
-    let db = db as &DatabaseConnection;
-
-    Tweets::find()
-        .all(db)
+pub async fn tweets(db: &State<DatabaseConnection>) -> Vec<TweetData> {
+    let tweet_models:Vec<tweets::Model> = Tweets::find()
+        .all(db as &DatabaseConnection)
         .await
-        .unwrap_or_else(|error|panic!("Failed to get tweets from database. Error: {:?}", error))
-        .into_iter()
-        .map(|b| b.to_tweet())
-        .collect::<Vec<twitter_v2::Tweet>>()
+        .unwrap_or_else(|error| panic!("Failed to get tweets from database. Error: {:?}", error));
+    join_all(tweet_models.into_iter().map(|tweet_model|TweetData::read_from_data_model(db,tweet_model))).await
 }
 
-pub async fn conversation(db: &State<DatabaseConnection>, conversation_id: i64) -> Vec<Tweet> {
+pub async fn conversation(db: &State<DatabaseConnection>, conversation_id: i64) -> ConversationData {
     let db = db as &DatabaseConnection;
 
     Tweets::find()
@@ -93,11 +48,11 @@ pub async fn conversation(db: &State<DatabaseConnection>, conversation_id: i64) 
             )
         })
         .into_iter()
-        .map(|b| b.to_tweet())
+        .map(|tweet_model|TweetData::read_from_data_model(db, tweet_model) )
         .collect::<Vec<twitter_v2::Tweet>>()
 }
 
-pub async fn users(db: &State<DatabaseConnection>) -> Vec<User> {
+pub async fn users(db: &State<DatabaseConnection>) -> Vec<UserData> {
     let db = db as &DatabaseConnection;
 
     Users::find()
@@ -109,7 +64,7 @@ pub async fn users(db: &State<DatabaseConnection>) -> Vec<User> {
         .collect::<Vec<twitter_v2::User>>()
 }
 
-pub async fn users_tweets(db: &State<DatabaseConnection>, twitter_handle: &str) -> Vec<Tweet> {
+pub async fn users_tweets(db: &State<DatabaseConnection>, twitter_handle: &str) -> Vec<TweetData> {
     let user = load_user_from_twitter_handle(db, twitter_handle).await;
     let username = user.name;
 

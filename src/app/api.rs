@@ -5,7 +5,9 @@ use twitter_v2::authorization::BearerToken;
 use twitter_v2::query::{TweetField, UserField};
 use twitter_v2::{Tweet, TwitterApi, User};
 use tokio::time::sleep;
-pub async fn get_tweets_from_user(user: &User) -> Vec<Tweet> {
+
+use crate::utils::TweetData;
+pub async fn get_tweets_from_user(user: &User) -> Vec<TweetData> {
     let twitter_handle = &user.username;
     load_api()
         .await
@@ -32,7 +34,7 @@ pub async fn get_tweets_from_user(user: &User) -> Vec<Tweet> {
         })
 }
 
-pub async fn get_latest_tweet_from_user(user: &User) -> Tweet {
+pub async fn get_latest_tweet_from_user(user: &User) -> TweetData {
     let twitter_handle = &user.username;
     load_api()
         .await
@@ -62,7 +64,7 @@ pub async fn get_latest_tweet_from_user(user: &User) -> Tweet {
         .clone()
 }
 
-pub async fn get_new_tweets_from_user(user: &User, from: &OffsetDateTime) -> Vec<Tweet> {
+pub async fn get_new_tweets_from_user(user: &User, from: &OffsetDateTime) -> Vec<TweetData> {
     let twitter_handle = &user.username;
     load_api()
         .await
@@ -84,7 +86,7 @@ pub async fn get_new_tweets_from_user(user: &User, from: &OffsetDateTime) -> Vec
         })
 }
 
-pub async fn get_all_tweets_from_user(user: &User) -> Vec<Tweet> {
+pub async fn get_all_tweets_from_user(user: &User) -> Vec<TweetData> {
     let twitter_handle = &user.username;
     let mut output = get_first_hundred_tweets_from_user(user).await;
     const FIRST_TWEET_ID: u64 = 1012187366587392000; // 1490542591154130947; //@yudapearls first tweet id = 1012187366587392000
@@ -114,7 +116,7 @@ pub async fn get_all_tweets_from_user(user: &User) -> Vec<Tweet> {
     output
 }
 
-pub async fn get_first_hundred_tweets_from_user(user: &User) -> Vec<Tweet> {
+pub async fn get_first_hundred_tweets_from_user(user: &User) -> Vec<TweetData> {
     let twitter_handle = &user.username;
     load_api()
         .await
@@ -136,7 +138,7 @@ pub async fn get_first_hundred_tweets_from_user(user: &User) -> Vec<Tweet> {
         })
 }
 
-pub async fn get_tweets_from_user_until_id(user: &User, id: u64) -> Vec<Tweet> {
+pub async fn get_tweets_from_user_until_id(user: &User, id: u64) -> Vec<TweetData> {
     let twitter_handle = &user.username;
     load_api()
         .await
@@ -159,7 +161,7 @@ pub async fn get_tweets_from_user_until_id(user: &User, id: u64) -> Vec<Tweet> {
         })
 }
 
-pub async fn get_tweet_by_id(id: u64) -> Option<Tweet> {
+pub async fn get_tweet_by_id(id: u64) -> TweetData {
 
     match load_api()
         .await
@@ -199,7 +201,7 @@ pub async fn get_tweet_by_id(id: u64) -> Option<Tweet> {
 }
 
 
-pub async fn get_user_by_twitter_handle(twitter_handle: &str) -> User {
+pub async fn get_user_by_twitter_handle(twitter_handle: &str) -> UserData {
     load_api()
         .await
         .get_user_by_username(twitter_handle)
@@ -213,7 +215,7 @@ pub async fn get_user_by_twitter_handle(twitter_handle: &str) -> User {
         })
 }
 
-pub async fn get_user_by_id(id: u64) -> User {
+pub async fn get_user_by_id(id: u64) -> UserData {
     load_api()
         .await
         .get_user(id)

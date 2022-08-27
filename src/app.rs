@@ -1,10 +1,10 @@
-use crate::utils::TweetReferenceData;
+use crate::utils::{u64_to_i64, TweetReferenceData};
 use async_recursion::async_recursion;
 use futures::{executor::block_on, StreamExt};
 use rocket::{http::ext::IntoCollection, time::OffsetDateTime, State};
 use sea_orm::DatabaseConnection;
-use twitter_v2::{data::ReferencedTweetKind::RepliedTo, Tweet, User};
 use std::collections::VecDeque;
+use twitter_v2::{data::ReferencedTweetKind::RepliedTo, Tweet, User};
 pub mod api;
 pub mod data;
 
@@ -114,7 +114,7 @@ pub async fn load_user_conversations_from_twitter_handle(
 ) -> Vec<Vec<Tweet>> {
     let users_tweets = load_user_tweets_from_twitter_handle(db, twitter_handle).await;
     let mut output: Vec<Vec<Tweet>> = Vec::<Vec<Tweet>>::new();
-    for (i, tweet) in users_tweets.iter().enumerate().take(400).skip(200) {
+    for (i, tweet) in users_tweets.iter().enumerate().take(400) {
         let tweet_id = &tweet.id.as_u64();
         println!("\nLoading conversation {i} from tweet of id {tweet_id}\n");
         output.push(
@@ -199,58 +199,49 @@ pub async fn load_users_new_tweets(
     let from = load_offset_datetime_for_users_latest_tweet_in_database(db, twitter_handle).await;
     api::get_new_tweets_from_user(&user, &from).await
 }
-
-// pub async fn load_twitter_conversation_from_tweet_id(
-//     db: &State<DatabaseConnection>,
-//     tweet_id: i64,
-// ) -> Vec<Tweet> {
-//     let tweet = load_tweet_with_reference_from_id(db, tweet_id).await;
-//     match tweet {
-//         Some(tweet) => {
-//             data::read::conversation(
-//                 db,
-//                 tweet
-//                     .conversation_id
-//                     .expect("bad conversation id")
-//                     .as_u64()
-//                     .try_into()
-//                     .unwrap(),
-//             )
-//             .await
-//         }
-//         None => Vec::<Tweet>::new(),
-//     }
-// }
-//
-
 pub async fn load_twitter_conversation_from_tweet_id(
     db: &State<DatabaseConnection>,
     tweet_id: i64,
 ) -> Vec<Tweet> {
-    let tweet = load_tweet_with_reference_from_id(db, tweet_id).await;
-    let mut output: VecDeque<Option<Tweet>> = VecDeque::from(vec![tweet]);
-    let mut working: VecDeque<Tweet> = output.clone().into_iter().flatten().collect();
-    match working[0].clone().referenced_tweets {
-        Some(referenced_tweets) => {
-            while referenced_tweets
+    let tweet = load_tweet_from_id(db, tweet_id).await;
+    let mut conversation: VecDeque<Tweet> =
+        VecDeque::from(vec![tweet.clone()]).into_iter().flatten().collect();
+    let mut reference_tweets = conversation[0].clone().referenced_tweets;
+    println!("The tweets is {:?}", &tweet);
+    println!("The referenced_tweets are {:?}", reference_tweets);
+    while reference_tweets.is_some()
+        && reference_tweets
+            .clone()
+            .unwrap()
+            .iter()
+            .any(|reference| reference.kind == RepliedTo)
+    {
+        let references = reference_tweets.unwrap();
+        let replied_to_id: i64 = u64_to_i64(
+            references
                 .iter()
-                .any(|tweet| tweet.kind == RepliedTo)
-            {
-                let replied_to_id: i64 = referenced_tweets
-                    .iter()
-                    .find(|tweet| tweet.kind == RepliedTo)
-                    .expect("Failed to find replied to tweet")
-                    .id
-                    .as_u64()
-                    .try_into()
-                    .unwrap();
-                output.push_front(load_tweet_with_reference_from_id(db, replied_to_id).await);
-                working = output.clone().into_iter().flatten().collect();
-            }
-        }
-        None => {}
+                .find(|reference| reference.kind == RepliedTo)
+                .expect("Failed to find the replied to tweet")
+                .id
+                .as_u64(),
+        );
+        conversation.push_front(
+            load_tweet_from_id(db, replied_to_id)
+                .await
+                .expect("Failed to load replied to tweet of id {replied_to_id}."),
+        );
+        data::write::tweet_reference(
+            db,
+            TweetReferenceData {
+                reference_type: RepliedTo,
+                source_tweet_id: tweet_id,
+                reference_tweet_id: replied_to_id,
+            },
+        );
+        reference_tweets = conversation[0].clone().referenced_tweets;
     }
-    Vec::from(working)
+    println!("This conversation is {} tweet(s) long.", conversation.len());
+    Vec::from(conversation)
 }
 pub async fn search_tweets_in_db(db: &State<DatabaseConnection>, search_query: &str) -> Vec<Tweet> {
     data::read::search_tweets_in_db(db, search_query).await
