@@ -3,11 +3,12 @@
 use chrono::{DateTime, FixedOffset};
 use rocket::time::OffsetDateTime;
 use sea_orm::entity::prelude::*;
+use serde::{Serialize, Deserialize};
 use twitter_v2::data::ReferencedTweet;
 
 use crate::utils::TweetReferenceData;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "tweets")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]

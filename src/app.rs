@@ -19,7 +19,7 @@ pub async fn load_tweet_from_id(db: &State<DatabaseConnection>, id: i64) -> Twee
             let tweet = tweet_data.tweet.clone();
             match tweet {
                 Some(_tweet) => {
-                    tweet_data.write(db);
+                    tweet_data.write(db).await;
                     tweet_data
                 }
                 None => TweetData::empty(),
@@ -38,7 +38,7 @@ pub async fn load_user_from_id(db: &State<DatabaseConnection>, id: i64) -> UserD
             let user = user_data.user.clone();
             match user {
                 Some(_user) => {
-                    user_data.write(db);
+                    user_data.write(db).await;
                     user_data
                 }
                 None => UserData::empty().await,
@@ -60,7 +60,7 @@ pub async fn load_user_from_twitter_handle(
             let user = user_data.user.clone();
             match user {
                 Some(_user) => {
-                    user_data.write(db);
+                    user_data.write(db).await;
                     user_data
                 }
                 None => UserData::empty().await,
@@ -98,7 +98,7 @@ pub async fn load_user_conversations_from_twitter_handle(
 ) -> Vec<ConversationData> {
     let users_tweets = load_user_tweets_from_twitter_handle(db, twitter_handle).await;
     let mut output: Vec<ConversationData> = Vec::<ConversationData>::new();
-    for (i, tweet_data) in users_tweets.iter().enumerate().take(10) {
+    for (i, tweet_data) in users_tweets.iter().enumerate().take(30) {
         let tweet = tweet_data.tweet.clone().unwrap();
         let tweet_id = &tweet.id;
         println!("\nLoading conversation {i} from tweet of id {tweet_id}\n");

@@ -82,11 +82,12 @@ pub async fn users(db: &State<DatabaseConnection>) -> Vec<UserData> {
 }
 
 pub async fn users_tweets(db: &State<DatabaseConnection>, twitter_handle: &str) -> Vec<TweetData> {
-    let user = load_user_from_twitter_handle(db, twitter_handle).await;
+    let user_data = load_user_from_twitter_handle(db, twitter_handle).await;
+    let user = user_data.user.clone().expect("Failed to get user");
     let username = user.name;
 
     let users_tweets_from_db = Tweets::find()
-        .filter(tweets::Column::AuthorId.eq(user.id.as_u64()))
+        .filter(tweets::Column::AuthorId.eq(user.id))
         .order_by_desc(tweets::Column::CreatedAt)
         .all(db as &DatabaseConnection)
         .await
@@ -110,7 +111,8 @@ pub async fn users_tweets_since_date(
     twitter_handle: &str,
     rfc3339_date: &str,
 ) -> Vec<TweetData> {
-    let user = load_user_from_twitter_handle(db, twitter_handle).await;
+    let user_data = load_user_from_twitter_handle(db, twitter_handle).await;
+    let user = user_data.user.clone().expect("Failed to get user");
     let username = user.name;
 
     let date =
@@ -122,7 +124,7 @@ pub async fn users_tweets_since_date(
         });
 
     let tweets_from_db = Tweets::find()
-        .filter(tweets::Column::AuthorId.eq(user.id.as_u64()))
+        .filter(tweets::Column::AuthorId.eq(user.id))
         .filter(tweets::Column::CreatedAt.gt(date))
         .order_by_desc(tweets::Column::CreatedAt)
         .all(db as &DatabaseConnection)

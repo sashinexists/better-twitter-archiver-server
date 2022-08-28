@@ -6,6 +6,7 @@ use rocket::{
     State,
 };
 use sea_orm::{ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use serde::Deserialize;
 use twitter_v2::{
     data::{ReferencedTweet, ReferencedTweetKind},
     id::NumericId,
@@ -15,7 +16,7 @@ use twitter_v2::{
 use crate::app::data::entities::prelude::*;
 use crate::app::data::entities::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TweetData {
     pub tweet: Option<tweets::Model>,
     pub references: Vec<tweet_references::Model>,
@@ -85,9 +86,9 @@ impl TweetData {
 
     pub async fn from_api_tweet(tweet: Option<Tweet>) -> Self {
         if let Some(tweet) = tweet {
-            let references_data: Vec<TweetReferenceData> = tweet
+            let references: Vec<tweet_references::Model> = tweet
                 .referenced_tweets
-                .unwrap_or_else(|| panic!("Failed to get references for tweet of id {}", tweet.id))
+                .unwrap_or_default()
                 .iter()
                 .map(|reference| {
                     TweetReferenceData::from_referenced_tweet(
@@ -95,9 +96,6 @@ impl TweetData {
                         reference,
                     )
                 })
-                .collect();
-            let references: Vec<tweet_references::Model> = references_data
-                .into_iter()
                 .map(|reference| tweet_references::Model {
                     source_tweet_id: reference.source_tweet_id,
                     reference_type: TweetReferenceData::type_to_string(&reference),
@@ -140,7 +138,7 @@ impl TweetData {
     }
 
     pub async fn read_many(db: &State<DatabaseConnection>, ids: &[i64]) -> Vec<Self> {
-        join_all(ids.into_iter().map(|id| Self::read(db, *id))).await
+        join_all(ids.iter().map(|id| Self::read(db, *id))).await
     }
 
     pub async fn write(&self, db: &State<DatabaseConnection>) {
@@ -194,6 +192,7 @@ impl TweetData {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserData {
     pub user: Option<users::Model>,
 }
@@ -271,9 +270,10 @@ impl UserData {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversationData {
-    id: i64,
-    tweets: Vec<TweetData>,
+    pub id: i64,
+    pub tweets: Vec<TweetData>,
 }
 
 pub fn convert_date_to_chrono(date: Option<OffsetDateTime>) -> DateTime<FixedOffset> {
@@ -331,7 +331,7 @@ impl TweetReferenceData {
     pub fn from_referenced_tweet(id: i64, referenced_tweet: &ReferencedTweet) -> Self {
         Self {
             reference_type: referenced_tweet.kind.clone(),
-            source_tweet_id: id.clone(),
+            source_tweet_id: id,
             reference_tweet_id: referenced_tweet
                 .id
                 .as_u64()
@@ -342,7 +342,7 @@ impl TweetReferenceData {
 
     pub fn to_referenced_tweet(&self) -> ReferencedTweet {
         ReferencedTweet {
-            kind: self.reference_type,
+            kind: self.reference_type.clone(),
             id: NumericId::from(i64_to_u64(self.reference_tweet_id)),
         }
     }
@@ -350,8 +350,8 @@ impl TweetReferenceData {
     pub fn clone(&self) -> Self {
         Self {
             reference_type: self.reference_type.clone(),
-            source_tweet_id: self.source_tweet_id.clone(),
-            reference_tweet_id: self.reference_tweet_id.clone(),
+            source_tweet_id: self.source_tweet_id,
+            reference_tweet_id: self.reference_tweet_id,
         }
     }
 }

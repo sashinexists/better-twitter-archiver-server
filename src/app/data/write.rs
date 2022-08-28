@@ -16,7 +16,7 @@ pub async fn tweet(db: &State<DatabaseConnection>, tweet_data: &TweetData) {
     }
     }
 
-    tweet_data.write(db);
+    tweet_data.write(db).await;
 }
 
 pub async fn tweets(db: &State<DatabaseConnection>, tweets: &[TweetData]) {
@@ -25,7 +25,7 @@ pub async fn tweets(db: &State<DatabaseConnection>, tweets: &[TweetData]) {
 }
 
 pub async fn user(db: &State<DatabaseConnection>, user: &UserData) {
-   user.write(db); 
+   user.write(db).await; 
 }
 
 pub async fn conversation(db: &State<DatabaseConnection>, conversation_id: &i64) {
