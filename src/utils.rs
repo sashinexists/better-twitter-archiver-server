@@ -15,6 +15,7 @@ use twitter_v2::{
 use crate::app::data::entities::prelude::*;
 use crate::app::data::entities::*;
 
+#[derive(Debug, Clone)]
 pub struct TweetData {
     pub tweet: Option<tweets::Model>,
     pub references: Vec<tweet_references::Model>,
@@ -211,10 +212,8 @@ impl UserData {
         }
     }
 
-    pub async fn empty() ->Self {
-        Self {
-            user: None
-        }
+    pub async fn empty() -> Self {
+        Self { user: None }
     }
 
     pub async fn from_data_model(user_from_db: users::Model) -> Self {
@@ -291,6 +290,12 @@ pub fn convert_date_to_chrono(date: Option<OffsetDateTime>) -> DateTime<FixedOff
 
     chrono::DateTime::<chrono::FixedOffset>::parse_from_rfc3339(&date_string)
         .expect("failed to parse date from string")
+}
+
+pub fn convert_chrono_to_date(chrono_date: DateTime<FixedOffset>) -> OffsetDateTime {
+    let timestamp = chrono_date.timestamp();
+    OffsetDateTime::from_unix_timestamp(timestamp)
+        .unwrap_or_else(|error| panic!("Bad date (failed to convert chrono date to rocket date)"))
 }
 
 pub fn to_ron<T: ?Sized + Serialize>(item: &T) -> String {
