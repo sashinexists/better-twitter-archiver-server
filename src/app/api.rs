@@ -6,12 +6,14 @@ use twitter_v2::authorization::BearerToken;
 use twitter_v2::query::{TweetField, UserField};
 use twitter_v2::{Tweet, TwitterApi, User};
 
-use crate::utils::{TweetData, UserData};
-pub async fn get_tweets_from_user(user: &User) -> Vec<TweetData> {
+use crate::utils::{TweetData, UserData, i64_to_u64};
+
+pub async fn get_tweets_from_user(user_data: &UserData) -> Vec<TweetData> {
+    let user = user_data.user.clone().unwrap_or_else(||panic!("Failed to get user, let alone their tweets"));
     let twitter_handle = &user.username;
     let api_tweets:Vec<Tweet> =load_api()
         .await
-        .get_user_tweets(user.id)
+        .get_user_tweets(i64_to_u64(user.id))
         .max_results(100)
         .tweet_fields([
             TweetField::Attachments,
@@ -35,11 +37,12 @@ pub async fn get_tweets_from_user(user: &User) -> Vec<TweetData> {
     join_all(api_tweets.into_iter().map(|api_tweet|TweetData::from_api_tweet(Some(api_tweet)))).await
 }
 
-pub async fn get_latest_tweet_from_user(user: &User) -> TweetData {
+pub async fn get_latest_tweet_from_user(user_data: &UserData) -> TweetData {
+    let user = user_data.user.clone().unwrap_or_else(||panic!("Failed to get user, let alone their tweets"));
     let twitter_handle = &user.username;
     let api_tweet =load_api()
         .await
-        .get_user_tweets(user.id)
+        .get_user_tweets(i64_to_u64(user.id))
         .max_results(5)
         .tweet_fields([
             TweetField::Attachments,
@@ -66,11 +69,12 @@ pub async fn get_latest_tweet_from_user(user: &User) -> TweetData {
     TweetData::from_api_tweet(Some(api_tweet)).await
 }
 
-pub async fn get_new_tweets_from_user(user: &User, from: &OffsetDateTime) -> Vec<TweetData> {
+pub async fn get_new_tweets_from_user(user_data: &UserData, from: &OffsetDateTime) -> Vec<TweetData> {
+    let user = user_data.user.clone().unwrap_or_else(||panic!("Failed to get user, let alone their tweets"));
     let twitter_handle = &user.username;
     let api_tweets:Vec<Tweet> =load_api()
         .await
-        .get_user_tweets(user.id)
+        .get_user_tweets(i64_to_u64(user.id))
         .start_time(*from)
         .tweet_fields([
             TweetField::Attachments,

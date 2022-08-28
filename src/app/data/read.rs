@@ -9,7 +9,6 @@ use chrono::FixedOffset;
 use futures::future::join_all;
 use rocket::State;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
-use twitter_v2::{Tweet, User};
 
 pub async fn tweet_by_id(db: &State<DatabaseConnection>, id: i64) -> TweetData {
     TweetData::read(db, id).await

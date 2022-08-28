@@ -28,6 +28,13 @@ impl TweetData {
         }
     }
 
+    pub fn empty() -> Self {
+        Self {
+            tweet: None,
+            references: Vec::new(),
+        }
+    }
+
     pub async fn read(db: &State<DatabaseConnection>, id: i64) -> Self {
         let db = db as &DatabaseConnection;
         let references = TweetReferences::find()
@@ -76,51 +83,58 @@ impl TweetData {
     }
 
     pub async fn from_api_tweet(tweet: Option<Tweet>) -> Self {
-        if let Some(tweet) = tweet{
-        let references_data: Vec<TweetReferenceData> = tweet
-            .referenced_tweets
-            .unwrap_or_else(|| panic!("Failed to get references for tweet of id {}", tweet.id))
-            .iter()
-            .map(|reference| {
-                TweetReferenceData::from_referenced_tweet(u64_to_i64(tweet.id.as_u64()), reference)
-            })
-            .collect();
-        let references: Vec<tweet_references::Model> = references_data
-            .into_iter()
-            .map(|reference| tweet_references::Model {
-                source_tweet_id: reference.source_tweet_id,
-                reference_type: TweetReferenceData::type_to_string(&reference),
-                referenced_tweet_id: reference.reference_tweet_id,
-            })
-            .collect();
-        Self {
-            tweet: Some(tweets::Model {
-                id: u64_to_i64(tweet.id.as_u64()),
-                content: tweet.text,
-                author_id: u64_to_i64(
-                    tweet
-                        .author_id
-                        .unwrap_or_else(|| {
-                            panic!("Failed to get author_id for tweet of id {}.\n", tweet.id)
-                        })
-                        .as_u64(),
-                ),
-                conversation_id: u64_to_i64(
-                    tweet
-                        .conversation_id
-                        .unwrap_or_else(|| {
-                            panic!(
-                                "Failed to get conversation_id for tweet of id {}.\n",
-                                tweet.id
-                            )
-                        })
-                        .as_u64(),
-                ),
-                created_at: convert_date_to_chrono(tweet.created_at),
-            }),
-            references,
-        }} else {
-            TweetData{ tweet: None, references: Vec::new() }
+        if let Some(tweet) = tweet {
+            let references_data: Vec<TweetReferenceData> = tweet
+                .referenced_tweets
+                .unwrap_or_else(|| panic!("Failed to get references for tweet of id {}", tweet.id))
+                .iter()
+                .map(|reference| {
+                    TweetReferenceData::from_referenced_tweet(
+                        u64_to_i64(tweet.id.as_u64()),
+                        reference,
+                    )
+                })
+                .collect();
+            let references: Vec<tweet_references::Model> = references_data
+                .into_iter()
+                .map(|reference| tweet_references::Model {
+                    source_tweet_id: reference.source_tweet_id,
+                    reference_type: TweetReferenceData::type_to_string(&reference),
+                    referenced_tweet_id: reference.reference_tweet_id,
+                })
+                .collect();
+            Self {
+                tweet: Some(tweets::Model {
+                    id: u64_to_i64(tweet.id.as_u64()),
+                    content: tweet.text,
+                    author_id: u64_to_i64(
+                        tweet
+                            .author_id
+                            .unwrap_or_else(|| {
+                                panic!("Failed to get author_id for tweet of id {}.\n", tweet.id)
+                            })
+                            .as_u64(),
+                    ),
+                    conversation_id: u64_to_i64(
+                        tweet
+                            .conversation_id
+                            .unwrap_or_else(|| {
+                                panic!(
+                                    "Failed to get conversation_id for tweet of id {}.\n",
+                                    tweet.id
+                                )
+                            })
+                            .as_u64(),
+                    ),
+                    created_at: convert_date_to_chrono(tweet.created_at),
+                }),
+                references,
+            }
+        } else {
+            TweetData {
+                tweet: None,
+                references: Vec::new(),
+            }
         }
     }
 
@@ -180,7 +194,7 @@ impl TweetData {
 }
 
 pub struct UserData {
-    user: Option<users::Model>,
+    pub user: Option<users::Model>,
 }
 
 impl UserData {
@@ -197,9 +211,15 @@ impl UserData {
         }
     }
 
-    pub async fn from_data_model(user_from_db:users::Model)-> Self {
+    pub async fn empty() ->Self {
+        Self {
+            user: None
+        }
+    }
+
+    pub async fn from_data_model(user_from_db: users::Model) -> Self {
         UserData {
-            user: Some(user_from_db)
+            user: Some(user_from_db),
         }
     }
 
