@@ -1,6 +1,7 @@
 use chrono::FixedOffset;
 use rocket::*;
 mod app;
+mod seed;
 
 use app::data::setup;
 use dotenvy::dotenv;

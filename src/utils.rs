@@ -295,7 +295,7 @@ pub fn convert_date_to_chrono(date: Option<OffsetDateTime>) -> DateTime<FixedOff
 pub fn convert_chrono_to_date(chrono_date: DateTime<FixedOffset>) -> OffsetDateTime {
     let timestamp = chrono_date.timestamp();
     OffsetDateTime::from_unix_timestamp(timestamp)
-        .unwrap_or_else(|error| panic!("Bad date (failed to convert chrono date to rocket date)"))
+        .unwrap_or_else(|_error| panic!("Bad date (failed to convert chrono date to rocket date)"))
 }
 
 pub fn to_ron<T: ?Sized + Serialize>(item: &T) -> String {

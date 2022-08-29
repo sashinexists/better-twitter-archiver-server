@@ -1,16 +1,15 @@
-use crate::utils::{
-    convert_chrono_to_date, i64_to_u64, u64_to_i64, ConversationData, TweetData,
-    TweetReferenceData, UserData,
+use crate::{
+    seed,
+    utils::{convert_chrono_to_date, i64_to_u64, ConversationData, TweetData, UserData},
 };
 use rocket::{time::OffsetDateTime, State};
 use sea_orm::DatabaseConnection;
 use std::collections::VecDeque;
-use twitter_v2::{data::ReferencedTweetKind::RepliedTo, Tweet, User};
 pub mod api;
 pub mod data;
 
 pub async fn load_tweet_from_id(db: &State<DatabaseConnection>, id: i64) -> TweetData {
-    let tweet_data = TweetData::read(db, id).await;
+    let tweet_data = data::read::tweet_by_id(db, id).await;
     let tweet = tweet_data.tweet.clone();
     match tweet {
         Some(_tweet) => tweet_data,
@@ -19,7 +18,7 @@ pub async fn load_tweet_from_id(db: &State<DatabaseConnection>, id: i64) -> Twee
             let tweet = tweet_data.tweet.clone();
             match tweet {
                 Some(_tweet) => {
-                    tweet_data.write(db).await;
+                    data::write::tweet(db, &tweet_data).await;
                     tweet_data
                 }
                 None => TweetData::empty(),
@@ -74,13 +73,10 @@ pub async fn load_user_tweets_from_twitter_handle(
     twitter_handle: &str,
 ) -> Vec<TweetData> {
     let user_tweets = data::read::users_tweets(db, twitter_handle).await;
-    //need something better
     if user_tweets.is_empty() {
-        let user_tweets =
-            api::get_tweets_from_user(&load_user_from_twitter_handle(db, twitter_handle).await)
-                .await;
+        seed::all_tweets(db).await;
         data::write::tweets(db, &user_tweets).await;
-        user_tweets
+        data::read::users_tweets(db, twitter_handle).await
     } else if has_new_tweets(db, twitter_handle).await {
         println!("Adding new tweets");
         let new_tweets = load_users_new_tweets(db, twitter_handle).await;
@@ -98,24 +94,15 @@ pub async fn load_user_conversations_from_twitter_handle(
 ) -> Vec<ConversationData> {
     let users_tweets = load_user_tweets_from_twitter_handle(db, twitter_handle).await;
     let mut output: Vec<ConversationData> = Vec::<ConversationData>::new();
-    for (i, tweet_data) in users_tweets.iter().enumerate().take(30) {
+    for (i, tweet_data) in users_tweets.iter().enumerate() {
         let tweet = tweet_data.tweet.clone().unwrap();
         let tweet_id = &tweet.id;
-        println!("\nLoading conversation {i} from tweet of id {tweet_id}\n");
+        println!("Loading conversation {i} from tweet of id {tweet_id}");
         output.push(load_twitter_conversation_from_tweet_id(db, *tweet_id).await);
     }
     output
 }
 
-pub async fn seed_user_tweets_from_twitter_handle(
-    db: &State<DatabaseConnection>,
-    twitter_handle: &str,
-) -> Vec<TweetData> {
-    let user_tweets =
-        api::get_tweets_from_user(&load_user_from_twitter_handle(db, twitter_handle).await).await;
-    data::write::tweets(db, &user_tweets).await;
-    data::read::users_tweets(db, twitter_handle).await
-}
 
 pub async fn load_offset_datetime_for_users_latest_tweet_in_database(
     db: &State<DatabaseConnection>,
